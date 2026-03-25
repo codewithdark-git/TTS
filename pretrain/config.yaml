@@ -12,8 +12,17 @@ learning_rate: 5.0e-5
 ratio: <see read me to choose value>
 
 # Datasets
-text_QA_dataset: <speech input-ids>
-TTS_dataset: <text-input-ids>
+# English pretraining example:
+#   text_QA_dataset: <HuggingFace path to tokenised text QA dataset>
+#   TTS_dataset:     <HuggingFace path to tokenised English TTS dataset>
+#
+# Urdu pretraining example (Nastaliq/Arabic script):
+#   text_QA_dataset: <HuggingFace path to tokenised Urdu text QA dataset>
+#   TTS_dataset:     <HuggingFace path to tokenised Urdu TTS dataset>
+#   For Urdu-only TTS pretraining without a text dataset, set ratio to 0
+#   and point TTS_dataset at your Urdu speech dataset.
+text_QA_dataset: <text input-ids>
+TTS_dataset: <speech input-ids>
 
 # Naming and paths
 save_folder: "checkpoints"

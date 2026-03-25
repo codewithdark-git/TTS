@@ -166,15 +166,69 @@ You should start to see high quality results after ~50 examples but for best res
 
 ### Fine-tuning for Urdu (اردو)
 
-To fine-tune for Urdu, prepare your dataset with Urdu (Nastaliq/Arabic script) audio and text pairs following the same HuggingFace dataset format. Then update `finetune/config.yaml`:
+#### Step 1 — Prepare your Urdu audio dataset
+
+Collect Urdu speech recordings and their Nastaliq transcripts. Organise them as a HuggingFace dataset with the same schema used for English:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `audio` | `Audio` | Raw audio file (any sample rate; will be resampled) |
+| `text`  | `string` | Urdu transcript in Nastaliq script |
+| `speaker` | `string` | Speaker identifier, e.g. `"zia"` |
+
+You can push the raw dataset to your HuggingFace account:
+
+```python
+from datasets import Dataset, Audio
+import pandas as pd
+
+data = {
+    "audio": ["path/to/clip1.wav", "path/to/clip2.wav"],  # paths to Urdu audio files
+    "text":  ["یہ پہلا جملہ ہے۔", "یہ دوسرا جملہ ہے۔"],
+    "speaker": ["zia", "zia"],
+}
+ds = Dataset.from_dict(data).cast_column("audio", Audio())
+ds.push_to_hub("<YOUR_HF_USERNAME>/urdu-tts-raw")
+```
+
+Aim for at least **50 samples per speaker** for fine-tuning (300+ for best results). Pre-training requires substantially more data — typically thousands of hours of speech.
+
+#### Step 2 — Preprocess into token IDs
+
+Use the [data preprocessing notebook](https://colab.research.google.com/drive/1wg_CPCA-MzsWtsujwy-1Ovhv-tn8Q1nD?usp=sharing) to convert the raw audio+text pairs into model-ready `input_ids`. The notebook:
+- Tokenises each Urdu text string with the `zia` voice prefix (`zia: <text>`)
+- Encodes the audio using the SNAC codec into discrete tokens
+- Concatenates text tokens and audio tokens into a single `input_ids` sequence
+- Pushes the processed dataset to your HuggingFace account
+
+#### Step 3 — Configure and run fine-tuning
+
+Update `finetune/config.yaml` with the processed dataset path:
 
 ```yaml
 # Urdu dataset (Nastaliq/Arabic script)
-TTS_dataset: <PATH_TO_YOUR_URDU_DATASET>
+TTS_dataset: <YOUR_HF_USERNAME>/urdu-tts-processed
 # language: "ur"
+
+model_name: "canopylabs/orpheus-tts-0.1-pretrained"
 ```
 
-During training, your data samples should use the `zia` voice prefix so that the model learns to associate the voice name with Urdu speech:
+Then run the training script (standard fine-tune):
+
+```bash
+pip install transformers datasets wandb trl flash_attn torch
+huggingface-cli login
+wandb login
+cd finetune && accelerate launch train.py
+```
+
+Or use LoRA for parameter-efficient fine-tuning:
+
+```bash
+cd finetune && accelerate launch lora.py
+```
+
+During training every sample must use a consistent voice prefix that matches the speaker identifier in your dataset. `zia` is the recommended name for a default Urdu speaker, but you can use any name — simply keep it consistent between training data and inference:
 ```
 zia: یہ ایک اردو جملہ ہے۔
 ```
@@ -192,6 +246,60 @@ The base model provided is trained over 100k hours. I recommend not using synthe
 We train the 3b model on sequences of length 8192 - we use the same dataset format for TTS finetuning for the <TTS-dataset> pretraining. We chain input_ids sequences together for more efficient training. The text dataset required is in the form described in this issue [#37 ](https://github.com/canopyai/Orpheus-TTS/issues/37). 
 
 If you are doing extended training this model, i.e. for another language or style we recommend starting with finetuning only (no text dataset). The main idea behind the text dataset is discussed in the blog post. (tldr; doesn't forget too much semantic/reasoning ability so its able to better understand how to intone/express phrases when spoken, however most of the forgetting would happen very early on in the training i.e. <100000 rows), so unless you are doing very extended finetuning it may not make too much of a difference.
+
+### Pre-training for Urdu (اردو)
+
+Pre-training from scratch (or continuing from the English base) on Urdu data lets the model learn Urdu phonetics and prosody at a deeper level than fine-tuning alone.
+
+#### Step 1 — Prepare your Urdu speech dataset
+
+Follow the same dataset schema as described in the Fine-tuning section above (audio + Nastaliq text + speaker columns). For pre-training you will typically need a **much larger** dataset — aim for thousands of hours of Urdu speech.
+
+Push the raw dataset to HuggingFace and use the preprocessing notebook to convert it to `input_ids` sequences (see Fine-tuning Step 2).
+
+#### Step 2 — (Optional) Prepare a tokenised Urdu text dataset
+
+A text QA dataset in Urdu helps the model retain language-understanding ability during pre-training. Prepare a HuggingFace dataset of Urdu QA pairs tokenised with the Llama-3 tokeniser, following the format in [issue #37](https://github.com/canopyai/Orpheus-TTS/issues/37).
+
+For Urdu-only TTS pre-training without a text dataset, set `ratio: 0` in `pretrain/config.yaml` — the `BatchedRatioDataset` will use only the speech dataset.
+
+#### Step 3 — Configure pre-training
+
+Update `pretrain/config.yaml`:
+
+```yaml
+model_name: "canopylabs/orpheus-tts-0.1-pretrained"  # continue from English base
+tokenizer_name: "canopylabs/orpheus-tts-0.1-pretrained"
+
+epochs: 1
+batch_size: 1
+number_processes: 8
+pad_token: 128263
+save_steps: 12000
+learning_rate: 5.0e-5
+
+# Set ratio to 0 for speech-only, or e.g. 2 to interleave 2 text batches per speech batch
+ratio: 0
+
+# Urdu datasets
+text_QA_dataset: <YOUR_HF_USERNAME>/urdu-text-qa-tokenised   # omit / set ratio:0 if not used
+TTS_dataset:     <YOUR_HF_USERNAME>/urdu-tts-processed
+
+save_folder: "checkpoints"
+project_name: "pretrain-orpheus-urdu"
+run_name:     "urdu-pretrain-0"
+```
+
+#### Step 4 — Run pre-training
+
+```bash
+pip install transformers trl wandb flash_attn datasets torch
+huggingface-cli login
+wandb login
+cd pretrain && accelerate launch train.py
+```
+
+After pre-training completes, the checkpoint in `checkpoints/` can be used directly as a base for Urdu fine-tuning (Step 3 of the Fine-tuning for Urdu guide above).
 
 ## Also Check out
 
