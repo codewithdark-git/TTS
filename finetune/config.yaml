@@ -1,5 +1,14 @@
 # CHANGE THIS TO YOUR OWN DATASET
+# English fine-tuning example:
+#   TTS_dataset: canopylabs/zac-sample-dataset
+# Urdu fine-tuning example (Nastaliq/Arabic script):
+#   TTS_dataset: <PATH_TO_YOUR_URDU_DATASET>
 TTS_dataset: <PATH_TO_YOUR_DATASET>
+
+# Language of the dataset: "en" for English, "ur" for Urdu.
+# When fine-tuning for Urdu, set this to "ur" and use an Urdu TTS dataset above.
+# Voice names should match the language — e.g. use "zia" for an Urdu speaker voice.
+# language: "en"
 
 model_name: "canopylabs/orpheus-tts-0.1-pretrained"
 
