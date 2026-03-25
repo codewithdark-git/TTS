@@ -13,7 +13,7 @@ class OrpheusModel:
         self.dtype = dtype
         self.engine_kwargs = engine_kwargs  # vLLM engine kwargs
         self.engine = self._setup_engine()
-        self.available_voices = ["zoe", "zac","jess", "leo", "mia", "julia", "leah"]
+        self.available_voices = ["zoe", "zac", "jess", "leo", "mia", "julia", "leah", "zia"]
         
         # Use provided tokenizer path or default to model_name
         tokenizer_path = tokenizer if tokenizer else model_name

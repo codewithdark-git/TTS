@@ -9,6 +9,22 @@
   <form id="promptForm">
     <label for="promptInput">Enter Prompt:</label><br>
     <textarea id="promptInput" rows="4" cols="50" placeholder="Type your prompt here" required></textarea><br>
+    <label for="voiceSelect">Voice:</label><br>
+    <select id="voiceSelect">
+      <optgroup label="English" lang="en">
+        <option value="tara">tara</option>
+        <option value="leah">leah</option>
+        <option value="jess">jess</option>
+        <option value="leo">leo</option>
+        <option value="dan">dan</option>
+        <option value="mia">mia</option>
+        <option value="zac">zac</option>
+        <option value="zoe">zoe</option>
+      </optgroup>
+      <optgroup label="Urdu (اردو)" lang="ur">
+        <option value="zia">zia</option>
+      </optgroup>
+    </select><br><br>
     <button type="submit">Play Audio</button>
   </form>
   <audio id="audioPlayer" controls autoplay></audio>
@@ -18,8 +34,9 @@
     document.getElementById("promptForm").addEventListener("submit", function(event) {
       event.preventDefault();
       const prompt = document.getElementById("promptInput").value;
+      const voice = document.getElementById("voiceSelect").value;
       const encodedPrompt = encodeURIComponent(prompt);
-      const audioUrl = `${base_url}/tts?prompt=` + encodedPrompt;
+      const audioUrl = `${base_url}/tts?prompt=` + encodedPrompt + `&voice=` + encodeURIComponent(voice);
       
       // Set the audio element's src to your endpoint to stream and play the audio data
       const audioPlayer = document.getElementById("audioPlayer");

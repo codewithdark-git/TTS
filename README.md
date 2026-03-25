@@ -32,6 +32,8 @@ We also offer a family of multilingual models in a research release.
 
 1. [**Multlingual Family**](https://huggingface.co/collections/canopylabs/orpheus-multilingual-research-release-67f5894cd16794db163786ba) - 7 pairs of pretrained and finetuned models.
 
+Orpheus TTS supports **multilingual fine-tuning and inference**, including Urdu (Nastaliq/Arabic script). See the Finetune and Prompting sections below for details on adding a new language like Urdu.
+
 ### Inference
 
 #### Simple setup on Colab
@@ -56,12 +58,12 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
    cd Orpheus-TTS && pip install orpheus-speech # uses vllm under the hood for fast inference
    ```
    vllm pushed a slightly buggy version on March 18th so some bugs are being resolved by reverting to `pip install vllm==0.7.3` after `pip install orpheus-speech`
-4. Run the example below:
+4. Run the example below (English):
    ```python
    from orpheus_tts import OrpheusModel
    import wave
    import time
-   
+
    model = OrpheusModel(model_name ="canopylabs/orpheus-tts-0.1-finetune-prod", max_model_len=2048)
    prompt = '''Man, the way social media has, um, completely changed how we interact is just wild, right? Like, we're all connected 24/7 but somehow people feel more alone than ever. And don't even get me started on how it's messing with kids' self-esteem and mental health and whatnot.'''
 
@@ -89,6 +91,27 @@ Baseten is our [preferred inference partner](https://www.baseten.co/blog/canopy-
       print(f"It took {end_time - start_time} seconds to generate {duration:.2f} seconds of audio")
    ```
 
+   Or for **Urdu** (using a fine-tuned Urdu model and the `zia` voice):
+   ```python
+   from orpheus_tts import OrpheusModel
+   import wave
+
+   model = OrpheusModel(model_name="<YOUR_URDU_FINETUNED_MODEL>", max_model_len=2048)
+   prompt = "zia: یہ ایک اردو متن ہے جسے بولا جائے گا۔"
+
+   syn_tokens = model.generate_speech(
+      prompt=prompt,
+      voice="zia",
+      )
+
+   with wave.open("output_urdu.wav", "wb") as wf:
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(24000)
+      for audio_chunk in syn_tokens:
+         wf.writeframes(audio_chunk)
+   ```
+
 #### Setup Issues 
 
 If you've cloned this repository and encounter a KV cache error or `max_model_len` property does not exist, use the local package instead of the installed PyPI version:
@@ -112,6 +135,12 @@ This ensures you're using the repository code, which may have fixes not yet publ
 
 1. The `finetune-prod` models: for the primary model, your text prompt is formatted as `{name}: I went to the ...`. The options for name in order of conversational realism (subjective benchmarks) are "tara", "leah", "jess", "leo", "dan", "mia", "zac", "zoe" for English - each language has different voices [see voices here] (https://canopylabs.ai/releases/orpheus_can_speak_any_language#info)). Our python package does this formatting for you, and the notebook also prepends the appropriate string. You can additionally add the following emotive tags: `<laugh>`, `<chuckle>`, `<sigh>`, `<cough>`, `<sniffle>`, `<groan>`, `<yawn>`, `<gasp>`. For multilingual, see this [post](https://huggingface.co/collections/canopylabs/orpheus-multilingual-research-release-67f5894cd16794db163786ba) for supported tags.
 
+   **Urdu (اردو) example** — use the `zia` voice prefix with Nastaliq/Arabic script text:
+   ```
+   zia: یہ ایک اردو متن ہے جسے بولا جائے گا۔
+   ```
+   When calling `generate_speech`, pass `voice="zia"` and the Urdu text as `prompt`. The engine will format the full prompt as `zia: <your Urdu text>` automatically.
+
 2. The pretrained model: you can either generate speech just conditioned on text, or generate speech conditioned on one or more existing text-speech pairs in the prompt. Since this model hasn't been explicitly trained on the zero-shot voice cloning objective, the more text-speech pairs you pass in the prompt, the more reliably it will generate in the correct voice.
 
 
@@ -134,6 +163,23 @@ You should start to see high quality results after ~50 examples but for best res
     wandb login <wandb token>
     accelerate launch train.py
    ```
+
+### Fine-tuning for Urdu (اردو)
+
+To fine-tune for Urdu, prepare your dataset with Urdu (Nastaliq/Arabic script) audio and text pairs following the same HuggingFace dataset format. Then update `finetune/config.yaml`:
+
+```yaml
+# Urdu dataset (Nastaliq/Arabic script)
+TTS_dataset: <PATH_TO_YOUR_URDU_DATASET>
+# language: "ur"
+```
+
+During training, your data samples should use the `zia` voice prefix so that the model learns to associate the voice name with Urdu speech:
+```
+zia: یہ ایک اردو جملہ ہے۔
+```
+
+At inference time, pass `voice="zia"` to `generate_speech()` when using a fine-tuned Urdu model. English voices (tara, leah, jess, etc.) remain fully supported and are unaffected by Urdu fine-tuning.
 ### Additional Resources
 1. [Finetuning with unsloth](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Orpheus_(3B)-TTS.ipynb)
    
