@@ -147,7 +147,73 @@ This ensures you're using the repository code, which may have fixes not yet publ
 Additionally, use regular LLM generation args like `temperature`, `top_p`, etc. as you expect for a regular LLM. `repetition_penalty>=1.1`is required for stable generations. Increasing `repetition_penalty` and `temperature` makes the model speak faster.
 
 
-## Finetune Model
+## Automated Pipeline (single entry point)
+
+`pipeline.py` at the repository root provides a **single command** for the entire workflow — raw data processing, speaker injection, SNAC audio encoding, tokenisation, and training — for both fine-tuning and pre-training, in English or any other language including Urdu.
+
+### Install dependencies
+
+```bash
+pip install transformers datasets wandb peft flash_attn torch torchaudio snac
+huggingface-cli login
+wandb login
+```
+
+### Fine-tune (English or Urdu)
+
+```bash
+# English — speaker name read from the dataset's 'speaker' column automatically
+python pipeline.py --phase finetune --dataset canopylabs/zac-sample-dataset
+
+# Urdu — no 'speaker' column needed; pipeline adds "zia" prefix to every sample
+python pipeline.py --phase finetune --dataset <your-urdu-dataset> --speaker zia
+
+# LoRA (parameter-efficient) fine-tuning for Urdu
+python pipeline.py --phase finetune --dataset <your-urdu-dataset> --speaker zia --lora
+```
+
+### Pre-train (speech-only or with interleaved text QA)
+
+```bash
+# Speech-only pre-training (recommended starting point for a new language)
+python pipeline.py --phase pretrain --dataset <your-tts-dataset>
+
+# Joint text + speech pre-training (helps retain language understanding)
+# ratio=2 → 2 text batches followed by 1 speech batch, cycling
+python pipeline.py --phase pretrain \
+    --dataset <your-tts-dataset> \
+    --text-dataset <your-qa-dataset> \
+    --ratio 2
+```
+
+> **Why is there a separate `--text-dataset` for pre-training?**  
+> The English Orpheus model was pre-trained with a mix of speech data and text QA data so it retains general language understanding (see `pretrain/readme.md`). For a new language the text dataset is **optional** — the default (`--ratio 0`) trains on speech only, which is the right choice when starting from the English base. Add `--text-dataset` only if you want to build or preserve strong text comprehension in the new language.
+
+### Cache and reuse processed data
+
+Encoding audio with SNAC can take a while for large datasets. Cache the result to HuggingFace and reuse it:
+
+```bash
+# First run: process and push
+python pipeline.py --phase finetune --dataset <raw-dataset> --speaker zia \
+    --push-processed-to <your-hf-username>/urdu-tts-processed
+
+# Subsequent runs: skip processing entirely
+python pipeline.py --phase finetune \
+    --processed-dataset <your-hf-username>/urdu-tts-processed
+```
+
+### Multi-GPU training
+
+Wrap any `pipeline.py` call with `accelerate launch` for distributed training:
+
+```bash
+accelerate launch pipeline.py --phase pretrain --dataset <your-tts-dataset>
+```
+
+---
+
+## Finetune Model (manual / config-based)
 
 Here is an overview of how to finetune your model on any text and speech.
 This is a very simple process analogous to tuning an LLM using Trainer and Transformers.
